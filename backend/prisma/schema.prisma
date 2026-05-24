@@ -1,0 +1,162 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum WorkSchedule {
+  MON_FRI
+  MON_SAT
+  MON_SUN
+}
+
+enum EntryType {
+  IN
+  OUT
+}
+
+enum EntryStatus {
+  APPROVED
+  PENDING
+  REJECTED
+}
+
+enum EntrySource {
+  AUTO
+  MANUAL_ADMIN
+  MANUAL_EMPLOYEE
+  ADJUSTMENT
+}
+
+enum AdjustmentKind {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum AdjustmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id                   String                  @id @default(cuid())
+  code                 String                  @unique @db.Char(6)
+  name                 String
+  role                 Role                    @default(EMPLOYEE)
+  pinHash              String
+  dailyMinutesExpected Int
+  workSchedule         WorkSchedule            @default(MON_FRI)
+  isActive             Boolean                 @default(true)
+  isBlocked            Boolean                 @default(false)
+  failedLoginAttempts  Int                     @default(0)
+  deactivatedAt        DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  entriesCreated       TimeEntry[]             @relation("EntryCreatedBy")
+  entriesUpdated       TimeEntry[]             @relation("EntryUpdatedBy")
+  timeEntries          TimeEntry[]             @relation("UserTimeEntries")
+  requests             TimeAdjustmentRequest[] @relation("RequestUser")
+  reviews              TimeAdjustmentRequest[] @relation("ReviewUser")
+  auditActions         AuditLog[]              @relation("AuditActor")
+  auditTargets         AuditLog[]              @relation("AuditTarget")
+  checkpoints          Checkpoint[]
+}
+
+model TimeEntry {
+  id          String       @id @default(cuid())
+  userId      String
+  type        EntryType
+  occurredAt  DateTime
+  status      EntryStatus  @default(APPROVED)
+  source      EntrySource  @default(AUTO)
+  reason      String?      @db.VarChar(50)
+  isEdited    Boolean      @default(false)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user        User         @relation("UserTimeEntries", fields: [userId], references: [id])
+  createdBy   User?        @relation("EntryCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?        @relation("EntryUpdatedBy", fields: [updatedById], references: [id])
+  requests    TimeAdjustmentRequest[]
+
+  @@index([userId, occurredAt])
+}
+
+model TimeAdjustmentRequest {
+  id                  String           @id @default(cuid())
+  userId              String
+  kind                AdjustmentKind
+  entryId             String?
+  requestedType       EntryType?
+  requestedOccurredAt DateTime?
+  originalSnapshot    Json?
+  proposedSnapshot    Json?
+  reason              String           @db.VarChar(50)
+  status              AdjustmentStatus @default(PENDING)
+  reviewedById        String?
+  reviewedAt          DateTime?
+  rejectionReason     String?          @db.VarChar(120)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  user                User             @relation("RequestUser", fields: [userId], references: [id])
+  entry               TimeEntry?       @relation(fields: [entryId], references: [id])
+  reviewedBy          User?            @relation("ReviewUser", fields: [reviewedById], references: [id])
+
+  @@index([userId, status])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorId      String?
+  targetUserId String?
+  action       String
+  entity       String
+  entityId     String?
+  details      Json?
+  createdAt    DateTime @default(now())
+
+  actor        User?    @relation("AuditActor", fields: [actorId], references: [id])
+  targetUser   User?    @relation("AuditTarget", fields: [targetUserId], references: [id])
+
+  @@index([createdAt])
+}
+
+model CompanySettings {
+  id        String   @id @default("company")
+  legalName String   @default("")
+  cnpj      String   @default("")
+  address   String   @default("")
+  logoPath  String?
+  updatedAt DateTime @updatedAt
+}
+
+model Checkpoint {
+  id          String   @id @default(cuid())
+  fileName    String
+  filePath    String
+  reason      String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
