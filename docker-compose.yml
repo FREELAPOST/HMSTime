@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ponto_horas_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ponto
+      POSTGRES_PASSWORD: ponto
+      POSTGRES_DB: ponto_horas
+    ports:
+      - "5432:5432"
+    volumes:
+      - ponto_horas_pgdata:/var/lib/postgresql/data
+
+volumes:
+  ponto_horas_pgdata:
