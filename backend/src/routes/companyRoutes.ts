@@ -1,4 +1,5 @@
 import path from "node:path";
+import { mkdirSync } from "node:fs";
 import { Router } from "express";
 import multer from "multer";
 import { z } from "zod";
@@ -7,9 +8,14 @@ import { requireAdmin, requireAuth } from "../middleware/auth.js";
 import { audit } from "../services/auditService.js";
 
 const router = Router();
+const uploadDir = process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME
+  ? "/tmp/uploads"
+  : path.join(process.cwd(), "uploads");
+
+mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({
-  destination: path.join(process.cwd(), "uploads"),
+  destination: uploadDir,
   filename: (_req, file, cb) => {
     const extension = path.extname(file.originalname).toLowerCase() || ".png";
     cb(null, `company-logo${extension}`);
