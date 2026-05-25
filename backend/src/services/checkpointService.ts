@@ -8,13 +8,14 @@ import { audit } from "./auditService.js";
 const checkpointDir = path.join(process.cwd(), "checkpoints");
 
 async function snapshotData() {
-  const [users, timeEntries, adjustmentRequests, auditLogs, companySettings, checkpoints, appSettings] =
+  const [users, timeEntries, adjustmentRequests, auditLogs, companySettings, holidays, checkpoints, appSettings] =
     await Promise.all([
       prisma.user.findMany(),
       prisma.timeEntry.findMany(),
       prisma.timeAdjustmentRequest.findMany(),
       prisma.auditLog.findMany(),
       prisma.companySettings.findMany(),
+      prisma.holiday.findMany(),
       prisma.checkpoint.findMany(),
       prisma.appSetting.findMany()
     ]);
@@ -28,6 +29,7 @@ async function snapshotData() {
       adjustmentRequests,
       auditLogs,
       companySettings,
+      holidays,
       checkpoints,
       appSettings
     }
@@ -82,6 +84,7 @@ export async function restoreCheckpoint(input: { checkpointId: string; adminId: 
     await tx.timeEntry.deleteMany();
     await tx.checkpoint.deleteMany();
     await tx.appSetting.deleteMany();
+    await tx.holiday.deleteMany();
     await tx.companySettings.deleteMany();
     await tx.user.deleteMany();
 
@@ -93,6 +96,7 @@ export async function restoreCheckpoint(input: { checkpointId: string; adminId: 
     if (snapshot.tables.companySettings.length) {
       await tx.companySettings.createMany({ data: snapshot.tables.companySettings });
     }
+    if (snapshot.tables.holidays?.length) await tx.holiday.createMany({ data: snapshot.tables.holidays });
     if (snapshot.tables.checkpoints.length) await tx.checkpoint.createMany({ data: snapshot.tables.checkpoints });
     if (snapshot.tables.appSettings.length) await tx.appSetting.createMany({ data: snapshot.tables.appSettings });
     if (snapshot.tables.auditLogs.length) await tx.auditLog.createMany({ data: snapshot.tables.auditLogs });

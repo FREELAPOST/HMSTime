@@ -2,7 +2,8 @@ import { Role } from "@prisma/client";
 import { prisma } from "../prisma.js";
 import { buildTimeline, calculateWorkedMinutes, getMonthBalance, getMonthlyDays } from "./timeService.js";
 import { AppError } from "../utils/errors.js";
-import { addDays, endOfDay, formatDateKey, isExpectedWorkday, parseDateKey } from "../utils/date.js";
+import { addDays, endOfDay, formatDateKey, parseDateKey } from "../utils/date.js";
+import { getExpectedMinutesForDate, getHolidaysBetween } from "./holidayService.js";
 
 export async function buildMonthlyReport(input: {
   requesterId: string;
@@ -100,6 +101,7 @@ export async function buildPeriodReport(input: {
   const end = endOfDay(endDay);
   const users = await getReportUsers(input);
   const company = await getCompanySettings();
+  const holidays = await getHolidaysBetween(start, addDays(endDay, 1));
   const periodLabel = `${input.startDate} a ${input.endDate}`;
 
   const employees = await Promise.all(
@@ -112,7 +114,7 @@ export async function buildPeriodReport(input: {
         const date = formatDateKey(cursor);
         const dayEntries = entries.filter((entry) => formatDateKey(entry.occurredAt) === date);
         const workedMinutes = calculateWorkedMinutes(dayEntries);
-        const expectedMinutes = isExpectedWorkday(cursor, user.workSchedule) ? user.dailyMinutesExpected : 0;
+        const expectedMinutes = getExpectedMinutesForDate(user, cursor, holidays);
         days.push({
           date,
           entries: dayEntries,

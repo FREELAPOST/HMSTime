@@ -12,18 +12,17 @@ import { prisma } from "../prisma.js";
 import { audit } from "./auditService.js";
 import { verifySensitivePin } from "./securityService.js";
 import {
-  countExpectedDaysInMonth,
   eachDayOfMonth,
   endOfDay,
   formatDateKey,
   formatMonthKey,
-  isExpectedWorkday,
   isSameLocalDay,
   minutesBetween,
   parseDateKey,
   parseMonthKey
 } from "../utils/date.js";
 import { AppError } from "../utils/errors.js";
+import { getExpectedMinutesForDate, getHolidaysBetween } from "./holidayService.js";
 
 type AdjustmentLike = Pick<
   TimeAdjustmentRequest,
@@ -255,8 +254,9 @@ export async function getDaySummary(user: User, dateKey: string): Promise<DaySum
   const start = parseDateKey(dateKey);
   const end = endOfDay(start);
   const entries = await buildTimeline(user.id, { start, end, includeRejectedDisplay: true });
+  const holidays = await getHolidaysBetween(start, end);
   const workedMinutes = calculateWorkedMinutes(entries);
-  const expectedMinutes = isExpectedWorkday(start, user.workSchedule) ? user.dailyMinutesExpected : 0;
+  const expectedMinutes = getExpectedMinutesForDate(user, start, holidays);
 
   return {
     date: dateKey,
@@ -270,8 +270,9 @@ export async function getDaySummary(user: User, dateKey: string): Promise<DaySum
 export async function getMonthBalance(user: User, monthKey: string) {
   const { start, end } = parseMonthKey(monthKey);
   const entries = await buildTimeline(user.id, { start, end, includeRejectedDisplay: false });
+  const holidays = await getHolidaysBetween(start, end);
   const workedMinutes = calculateWorkedMinutes(entries);
-  const expectedDays = countExpectedDaysInMonth(monthKey, user.workSchedule);
+  const expectedDays = eachDayOfMonth(monthKey).filter((day) => getExpectedMinutesForDate(user, day, holidays) > 0).length;
   const expectedMinutes = expectedDays * user.dailyMinutesExpected;
 
   return {
@@ -286,12 +287,13 @@ export async function getMonthBalance(user: User, monthKey: string) {
 export async function getMonthlyDays(user: User, monthKey: string) {
   const { start, end } = parseMonthKey(monthKey);
   const monthEntries = await buildTimeline(user.id, { start, end, includeRejectedDisplay: true });
+  const holidays = await getHolidaysBetween(start, end);
 
   return eachDayOfMonth(monthKey).map((day) => {
     const date = formatDateKey(day);
     const entries = monthEntries.filter((entry) => formatDateKey(entry.occurredAt) === date);
     const workedMinutes = calculateWorkedMinutes(entries);
-    const expectedMinutes = isExpectedWorkday(day, user.workSchedule) ? user.dailyMinutesExpected : 0;
+    const expectedMinutes = getExpectedMinutesForDate(user, day, holidays);
 
     return {
       date,
