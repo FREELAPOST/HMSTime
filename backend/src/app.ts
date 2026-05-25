@@ -9,6 +9,7 @@ import timeRoutes from "./routes/timeRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import companyRoutes from "./routes/companyRoutes.js";
 import checkpointRoutes from "./routes/checkpointRoutes.js";
+import holidayRoutes from "./routes/holidayRoutes.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 
 export const app = express();
@@ -32,6 +33,7 @@ app.use("/api/time", timeRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/company", companyRoutes);
 app.use("/api/checkpoints", checkpointRoutes);
+app.use("/api/holidays", holidayRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
