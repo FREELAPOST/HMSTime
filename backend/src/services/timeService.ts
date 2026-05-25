@@ -369,6 +369,31 @@ async function assertNoPendingForEntry(entryId: string) {
   }
 }
 
+function allowsTemporaryManualEntryDraft(kind: AdjustmentKind, type: EntryType | null, occurredAt: Date | null) {
+  if (kind !== "CREATE" || type !== "IN" || !occurredAt) {
+    return false;
+  }
+
+  return formatDateKey(occurredAt) < formatDateKey(new Date());
+}
+
+function assertCoherentAdjustmentTimeline(
+  items: TimelineItem[],
+  kind: AdjustmentKind,
+  type: EntryType | null,
+  occurredAt: Date | null
+) {
+  try {
+    assertCoherentTimeline(items);
+  } catch (error) {
+    if (error instanceof AppError && allowsTemporaryManualEntryDraft(kind, type, occurredAt)) {
+      return;
+    }
+
+    throw error;
+  }
+}
+
 export async function createEmployeeAdjustment(input: {
   userId: string;
   pin: string;
@@ -433,7 +458,7 @@ export async function createEmployeeAdjustment(input: {
     includeRejectedDisplay: false,
     extraRequests: [candidate]
   });
-  assertCoherentTimeline(simulated);
+  assertCoherentAdjustmentTimeline(simulated, input.kind, requestedType, requestedOccurredAt);
 
   const request = await prisma.timeAdjustmentRequest.create({
     data: {
@@ -489,7 +514,13 @@ export async function createAdminEntry(input: {
   };
 
   const simulated = await buildTimeline(input.userId, { includeRejectedDisplay: false, extraItems: [extra] });
-  assertCoherentTimeline(simulated);
+  try {
+    assertCoherentTimeline(simulated);
+  } catch (error) {
+    if (!(error instanceof AppError) || !allowsTemporaryManualEntryDraft("CREATE", input.type, occurredAt)) {
+      throw error;
+    }
+  }
 
   const entry = await prisma.timeEntry.create({
     data: {
