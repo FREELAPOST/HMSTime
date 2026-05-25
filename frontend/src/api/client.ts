@@ -17,7 +17,7 @@ export function setToken(token: string | null) {
   }
 }
 
-type ApiOptions = RequestInit & {
+type ApiOptions = Omit<RequestInit, "body"> & {
   body?: BodyInit | Record<string, unknown> | null;
 };
 
