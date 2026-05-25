@@ -93,6 +93,15 @@ export type Checkpoint = {
   createdBy?: Pick<User, "id" | "code" | "name"> | null;
 };
 
+export type Holiday = {
+  id: string;
+  date: string;
+  name: string;
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type MonthlyReport = {
   month: string;
   generatedAt: string;
