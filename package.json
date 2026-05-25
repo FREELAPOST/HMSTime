@@ -9,16 +9,19 @@
   "scripts": {
     "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run build -w backend && npm run build -w frontend",
-    "build:netlify": "npm run prisma:generate -w backend && npm run build -w frontend",
+    "build:netlify": "prisma generate --schema=backend/prisma/schema.prisma && npm run build -w frontend",
+    "prisma:generate": "prisma generate --schema=backend/prisma/schema.prisma",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:migrate": "npm run prisma:migrate -w backend",
     "db:seed": "npm run prisma:seed -w backend"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "serverless-http": "^3.2.0"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "prisma": "^5.22.0"
   }
 }
