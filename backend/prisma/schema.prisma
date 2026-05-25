@@ -71,6 +71,7 @@ model User {
   auditActions         AuditLog[]              @relation("AuditActor")
   auditTargets         AuditLog[]              @relation("AuditTarget")
   checkpoints          Checkpoint[]
+  holidaysCreated      Holiday[]               @relation("HolidayCreatedBy")
 }
 
 model TimeEntry {
@@ -142,6 +143,20 @@ model CompanySettings {
   address   String   @default("")
   logoPath  String?
   updatedAt DateTime @updatedAt
+}
+
+model Holiday {
+  id          String   @id @default(cuid())
+  date        DateTime @unique @db.Date
+  name        String   @db.VarChar(80)
+  note        String?  @db.VarChar(160)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User?    @relation("HolidayCreatedBy", fields: [createdById], references: [id])
+
+  @@index([date])
 }
 
 model Checkpoint {
