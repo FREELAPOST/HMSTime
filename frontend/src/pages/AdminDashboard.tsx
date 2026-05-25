@@ -11,6 +11,7 @@ import type {
   Checkpoint,
   CompanySettings,
   EntryType,
+  Holiday,
   MonthlyReport,
   TimelineItem,
   User,
@@ -25,7 +26,7 @@ import {
   toDateTimeLocal
 } from "../utils/time";
 
-type Tab = "overview" | "pending" | "reports" | "company" | "checkpoints";
+type Tab = "overview" | "pending" | "reports" | "holidays" | "company" | "checkpoints";
 type EntryModalState = {
   mode: "CREATE" | "UPDATE" | "DELETE";
   userId: string;
@@ -40,6 +41,7 @@ export function AdminDashboard() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [company, setCompany] = useState<CompanySettings | null>(null);
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [report, setReport] = useState<MonthlyReport | null>(null);
   const [reportUserId, setReportUserId] = useState("all");
   const [error, setError] = useState("");
@@ -65,6 +67,11 @@ export function AdminDashboard() {
     setCheckpoints(payload.checkpoints);
   }
 
+  async function loadHolidays() {
+    const payload = await api<{ holidays: Holiday[] }>(`/holidays?month=${month}`);
+    setHolidays(payload.holidays);
+  }
+
   useEffect(() => {
     loadOverview();
   }, [date, month]);
@@ -72,7 +79,8 @@ export function AdminDashboard() {
   useEffect(() => {
     if (tab === "company") loadCompany().catch((err) => setError(err.message));
     if (tab === "checkpoints") loadCheckpoints().catch((err) => setError(err.message));
-  }, [tab]);
+    if (tab === "holidays") loadHolidays().catch((err) => setError(err.message));
+  }, [tab, month]);
 
   const employees = useMemo(() => overview?.rows.filter((row) => row.user.role === "EMPLOYEE") ?? [], [overview]);
 
@@ -90,6 +98,7 @@ export function AdminDashboard() {
               ["overview", "Painel"],
               ["pending", "Pendências"],
               ["reports", "Relatórios"],
+              ["holidays", "Feriados"],
               ["company", "Empresa"],
               ["checkpoints", "Backups"]
             ].map(([key, label]) => (
@@ -130,6 +139,18 @@ export function AdminDashboard() {
             reportUserId={reportUserId}
             setReportUserId={setReportUserId}
             setReport={setReport}
+          />
+        )}
+
+        {tab === "holidays" && (
+          <HolidaySection
+            month={month}
+            setMonth={setMonth}
+            holidays={holidays}
+            onRefresh={async () => {
+              await loadHolidays();
+              await loadOverview();
+            }}
           />
         )}
 
@@ -458,6 +479,100 @@ function ReportsSection({
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+function HolidaySection({
+  month,
+  setMonth,
+  holidays,
+  onRefresh
+}: {
+  month: string;
+  setMonth: (month: string) => void;
+  holidays: Holiday[];
+  onRefresh: () => Promise<void> | void;
+}) {
+  const [date, setDate] = useState(todayKey());
+  const [name, setName] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+
+    try {
+      await api("/holidays", {
+        method: "POST",
+        body: { date, name, note }
+      });
+      setName("");
+      setNote("");
+      await onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao salvar feriado.");
+    }
+  }
+
+  async function remove(id: string) {
+    setError("");
+
+    try {
+      await api(`/holidays/${id}`, { method: "DELETE" });
+      await onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao remover feriado.");
+    }
+  }
+
+  return (
+    <section className="grid gap-5 lg:grid-cols-[360px_1fr]">
+      <form className="panel space-y-3 p-5" onSubmit={submit}>
+        <h2 className="text-base font-semibold">Novo feriado</h2>
+        <label className="block text-sm font-medium">
+          Data
+          <input className="field mt-1" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+        </label>
+        <label className="block text-sm font-medium">
+          Nome
+          <input className="field mt-1" maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <label className="block text-sm font-medium">
+          Observacao
+          <input className="field mt-1" maxLength={160} value={note} onChange={(event) => setNote(event.target.value)} />
+        </label>
+        {error && <p className="rounded-md bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+        <p className="rounded-md bg-yellow-100 p-3 text-sm text-black">
+          Feriado cadastrado zera as horas esperadas do dia. Se houver trabalho, ele entra no saldo mensal.
+        </p>
+        <button className="focus-ring inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white" type="submit">
+          <Plus size={16} /> Salvar
+        </button>
+      </form>
+
+      <section className="panel p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Feriados do mes</h2>
+          <input className="field w-auto" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+        </div>
+        <div className="space-y-2">
+          {holidays.length === 0 && <p className="text-sm text-gray-500">Nenhum feriado cadastrado neste mes.</p>}
+          {holidays.map((holiday) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 px-4 py-3" key={holiday.id}>
+              <div>
+                <strong>{new Date(holiday.date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</strong>
+                <span className="ml-2">{holiday.name}</span>
+                {holiday.note && <div className="text-sm text-gray-500">{holiday.note}</div>}
+              </div>
+              <button className="icon-button" type="button" title="Remover" onClick={() => remove(holiday.id)}>
+                <X size={17} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
     </section>
   );
 }
